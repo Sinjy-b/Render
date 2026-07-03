@@ -1,12 +1,7 @@
-// Thomson's Falls CesiumJS skeleton app
-// ------------------------------------
-// This script creates a basic CesiumJS Viewer instance,
-// using Cesium World Terrain and World Imagery as placeholders.
-// Later, we will replace:
-//   - terrainProvider with tiles built from dem_thomsonsfalls.tif
-//   - imageryProvider with Sentinel-2 / WorldCover-derived layers.
+// -------------------------
+// Cesium ion initialization
+// -------------------------
 
-// Set your Cesium ion access token
 Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmM2ViY2FjNi1iYjM5LTQ5ZmQtODM3Mi03NWExNmY1ZTdjMGEiLCJpZCI6NDUyMjY4LCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoidW5kZWZpbmVkX2RlZmF1bHQiLCJpYXQiOjE3ODMxMDkyNTV9.BakumX90X00ws8_lPAKPLA2Bb7CExV1BTpBgFJjhqqM";
 
 // Terrain: Thomson's Falls DEM from Cesium ion
@@ -33,7 +28,7 @@ const viewer = new Cesium.Viewer("cesiumContainer", {
 // Upload your GeoTIFF (e.g., sentinel_thomsonsfalls.tif) to Cesium ion
 // as Raster Imagery, then use its asset ID here. [web:212][web:216][web:218][web:219][web:215]
 
-// Remove default base layer (Bing)
+// Remove default base layer (Bing or other)
 const baseLayer = viewer.imageryLayers.get(0);
 if (baseLayer) {
   viewer.imageryLayers.remove(baseLayer);
@@ -49,7 +44,7 @@ viewer.imageryLayers.addImageryProvider(
 // -------------------------
 
 // Approximate viewpoints around Thomson's Falls.
-// You can refine lon/lat/height and orientation later with QGIS or field data. [web:184][web:201]
+// Refine lon/lat/height and orientation later as needed. [web:184][web:201]
 
 const viewpoints = {
   aerial: {
