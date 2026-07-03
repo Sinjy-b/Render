@@ -9,12 +9,15 @@
 // Set your Cesium ion access token
 Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmM2ViY2FjNi1iYjM5LTQ5ZmQtODM3Mi03NWExNmY1ZTdjMGEiLCJpZCI6NDUyMjY4LCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoidW5kZWZpbmVkX2RlZmF1bHQiLCJpYXQiOjE3ODMxMDkyNTV9.BakumX90X00ws8_lPAKPLA2Bb7CExV1BTpBgFJjhqqM";
 
-// Create terrain provider from your ion asset (Thomson's Falls DEM)
+// Terrain: Thomson's Falls DEM from Cesium ion
 const terrainProvider = new Cesium.CesiumTerrainProvider({
   url: Cesium.IonResource.fromAssetId(5018338)
 });
 
-// Create the Cesium viewer
+// -------------------------
+// Viewer setup
+// -------------------------
+
 const viewer = new Cesium.Viewer("cesiumContainer", {
   terrainProvider: terrainProvider,
   timeline: false,
@@ -23,19 +26,31 @@ const viewer = new Cesium.Viewer("cesiumContainer", {
   sceneModePicker: true
 });
 
-// Replace default imagery with global Sentinel-2 from Cesium ion
-// (You can later swap assetId 3954 for your own Thomson's Falls imagery asset.)
-viewer.imageryLayers.remove(viewer.imageryLayers.get(0));
+// -------------------------
+// Imagery: Thomson's Falls Sentinel GeoTIFF from ion
+// -------------------------
+//
+// Upload your GeoTIFF (e.g., sentinel_thomsonsfalls.tif) to Cesium ion
+// as Raster Imagery, then use its asset ID here. [web:212][web:216][web:218][web:219][web:215]
+
+// Remove default base layer (Bing)
+const baseLayer = viewer.imageryLayers.get(0);
+if (baseLayer) {
+  viewer.imageryLayers.remove(baseLayer);
+}
+
+// Add your own site-specific Sentinel imagery from ion
 viewer.imageryLayers.addImageryProvider(
-  new Cesium.IonImageryProvider({ assetId: 3954 })
+  new Cesium.IonImageryProvider({ assetId: 5018470 })
 );
 
-// ----------------------
+// -------------------------
 // Viewpoint system
-// ----------------------
+// -------------------------
 
-// Define approximate viewpoints around Thomson's Falls
-// (You can refine lon/lat/height later.)
+// Approximate viewpoints around Thomson's Falls.
+// You can refine lon/lat/height and orientation later with QGIS or field data. [web:184][web:201]
+
 const viewpoints = {
   aerial: {
     destination: Cesium.Cartesian3.fromDegrees(36.38, -0.03, 2800),
