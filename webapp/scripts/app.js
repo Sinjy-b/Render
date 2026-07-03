@@ -12,26 +12,73 @@ Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOi
 // Create a terrain provider from your ion terrain asset
 const terrainProvider = Cesium.CesiumTerrainProvider.fromIonAssetId(5018338);
 
-// Create the Cesium viewer using your own terrain
+// Viewer with default imagery
 const viewer = new Cesium.Viewer("cesiumContainer", {
   terrainProvider: terrainProvider,
-  imageryProvider: Cesium.createWorldImagery(),   // placeholder imagery for now
   timeline: false,
   animation: false,
   baseLayerPicker: true,
   sceneModePicker: true
 });
 
-// Approximate AOI around Thomson's Falls
-const aoiRectangle = Cesium.Rectangle.fromDegrees(
-  36.35,  // west lon
-  -0.07,  // south lat
-  36.45,  // east lon
-  0.01    // north lat
-);
+// Define approximate viewpoints (placeholder coordinates, to be refined later)
+const viewpoints = {
+  rim: {
+    destination: Cesium.Cartesian3.fromDegrees(36.38, -0.03, 2400),
+    heading: Cesium.Math.toRadians(200),
+    pitch: Cesium.Math.toRadians(-20),
+    roll: 0.0
+  },
+  gorgeBase: {
+    destination: Cesium.Cartesian3.fromDegrees(36.38, -0.031, 2250),
+    heading: Cesium.Math.toRadians(20),
+    pitch: Cesium.Math.toRadians(-10),
+    roll: 0.0
+  },
+  upstream: {
+    destination: Cesium.Cartesian3.fromDegrees(36.375, -0.025, 2400),
+    heading: Cesium.Math.toRadians(200),
+    pitch: Cesium.Math.toRadians(-15),
+    roll: 0.0
+  },
+  downstream: {
+    destination: Cesium.Cartesian3.fromDegrees(36.385, -0.035, 2350),
+    heading: Cesium.Math.toRadians(20),
+    pitch: Cesium.Math.toRadians(-15),
+    roll: 0.0
+  },
+  aerial: {
+    destination: Cesium.Cartesian3.fromDegrees(36.38, -0.03, 2800),
+    heading: Cesium.Math.toRadians(220),
+    pitch: Cesium.Math.toRadians(-35),
+    roll: 0.0
+  }
+};
 
-viewer.camera.setView({
-  destination: aoiRectangle
+// Helper to fly to a viewpoint
+function flyTo(view) {
+  viewer.camera.flyTo({
+    destination: view.destination,
+    orientation: {
+      heading: view.heading,
+      pitch: view.pitch,
+      roll: view.roll
+    },
+    duration: 2.5
+  });
+}
+
+// Initial view: aerial overview
+flyTo(viewpoints.aerial);
+
+// Keyboard shortcuts for viewpoints (R: rim, G: gorge, U: upstream, D: downstream, A: aerial)
+document.addEventListener("keydown", (event) => {
+  if (event.key === "r") flyTo(viewpoints.rim);
+  if (event.key === "g") flyTo(viewpoints.gorgeBase);
+  if (event.key === "u") flyTo(viewpoints.upstream);
+  if (event.key === "d") flyTo(viewpoints.downstream);
+  if (event.key === "a") flyTo(viewpoints.aerial);
 });
 
+// Expose viewer for console debugging
 window.viewer = viewer;
