@@ -9,10 +9,12 @@
 // Set your Cesium ion access token
 Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmM2ViY2FjNi1iYjM5LTQ5ZmQtODM3Mi03NWExNmY1ZTdjMGEiLCJpZCI6NDUyMjY4LCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoidW5kZWZpbmVkX2RlZmF1bHQiLCJpYXQiOjE3ODMxMDkyNTV9.BakumX90X00ws8_lPAKPLA2Bb7CExV1BTpBgFJjhqqM";
 
-// Create a terrain provider from your ion terrain asset
-const terrainProvider = Cesium.CesiumTerrainProvider.fromIonAssetId(5018338);
+// Create terrain provider from your ion asset (Thomson's Falls DEM)
+const terrainProvider = new Cesium.CesiumTerrainProvider({
+  url: Cesium.IonResource.fromAssetId(5018338)
+});
 
-// Viewer with default imagery
+// Create the Cesium viewer
 const viewer = new Cesium.Viewer("cesiumContainer", {
   terrainProvider: terrainProvider,
   timeline: false,
@@ -21,8 +23,26 @@ const viewer = new Cesium.Viewer("cesiumContainer", {
   sceneModePicker: true
 });
 
-// Define approximate viewpoints (placeholder coordinates, to be refined later)
+// Replace default imagery with global Sentinel-2 from Cesium ion
+// (You can later swap assetId 3954 for your own Thomson's Falls imagery asset.)
+viewer.imageryLayers.remove(viewer.imageryLayers.get(0));
+viewer.imageryLayers.addImageryProvider(
+  new Cesium.IonImageryProvider({ assetId: 3954 })
+);
+
+// ----------------------
+// Viewpoint system
+// ----------------------
+
+// Define approximate viewpoints around Thomson's Falls
+// (You can refine lon/lat/height later.)
 const viewpoints = {
+  aerial: {
+    destination: Cesium.Cartesian3.fromDegrees(36.38, -0.03, 2800),
+    heading: Cesium.Math.toRadians(220),
+    pitch: Cesium.Math.toRadians(-35),
+    roll: 0.0
+  },
   rim: {
     destination: Cesium.Cartesian3.fromDegrees(36.38, -0.03, 2400),
     heading: Cesium.Math.toRadians(200),
@@ -46,16 +66,10 @@ const viewpoints = {
     heading: Cesium.Math.toRadians(20),
     pitch: Cesium.Math.toRadians(-15),
     roll: 0.0
-  },
-  aerial: {
-    destination: Cesium.Cartesian3.fromDegrees(36.38, -0.03, 2800),
-    heading: Cesium.Math.toRadians(220),
-    pitch: Cesium.Math.toRadians(-35),
-    roll: 0.0
   }
 };
 
-// Helper to fly to a viewpoint
+// Helper to fly to a given viewpoint
 function flyTo(view) {
   viewer.camera.flyTo({
     destination: view.destination,
@@ -71,14 +85,20 @@ function flyTo(view) {
 // Initial view: aerial overview
 flyTo(viewpoints.aerial);
 
-// Keyboard shortcuts for viewpoints (R: rim, G: gorge, U: upstream, D: downstream, A: aerial)
+// Keyboard shortcuts for viewpoints:
+// A = aerial overview
+// R = rim
+// G = gorge base
+// U = upstream
+// D = downstream
 document.addEventListener("keydown", (event) => {
-  if (event.key === "r") flyTo(viewpoints.rim);
-  if (event.key === "g") flyTo(viewpoints.gorgeBase);
-  if (event.key === "u") flyTo(viewpoints.upstream);
-  if (event.key === "d") flyTo(viewpoints.downstream);
-  if (event.key === "a") flyTo(viewpoints.aerial);
+  const key = event.key.toLowerCase();
+  if (key === "a") flyTo(viewpoints.aerial);
+  if (key === "r") flyTo(viewpoints.rim);
+  if (key === "g") flyTo(viewpoints.gorgeBase);
+  if (key === "u") flyTo(viewpoints.upstream);
+  if (key === "d") flyTo(viewpoints.downstream);
 });
 
-// Expose viewer for console debugging
+// Expose viewer for debugging in browser console
 window.viewer = viewer;
