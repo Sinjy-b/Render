@@ -5,47 +5,87 @@
 Cesium.Ion.defaultAccessToken =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmM2ViY2FjNi1iYjM5LTQ5ZmQtODM3Mi03NWExNmY1ZTdjMGEiLCJpZCI6NDUyMjY4LCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoidW5kZWZpbmVkX2RlZmF1bHQiLCJpYXQiOjE3ODMxMDkyNTV9.BakumX90X00ws8_lPAKPLA2Bb7CExV1BTpBgFJjhqqM";
 
-// Terrain: Thomson's Falls DEM from Cesium ion
-const terrainProvider = new Cesium.CesiumTerrainProvider({
-  url: Cesium.IonResource.fromAssetId(5018338)
-});
+// Your site-specific assets
+const THOMSON_TERRAIN_ASSET_ID = 5018338;
+const THOMSON_IMAGERY_ASSET_ID = 5018470;
+
+// Global assets (Cesium ion)
+const SENTINEL_GLOBAL_ASSET_ID = 3954;          // Sentinel-2 cloudless [web:185]
+const OSM_BUILDINGS_ASSET_ID = 96188;          // Cesium OSM Buildings example ID [web:402][web:453]
 
 // -------------------------
-// Viewer setup
+// Viewer setup: global core
 // -------------------------
+
+// For modern CesiumJS, World Terrain is accessed via Cesium.Terrain.fromWorldTerrain.
+// We wrap it in a helper so we can swap terrain later if needed. [web:209][web:455][web:456]
 
 const viewer = new Cesium.Viewer("cesiumContainer", {
-  terrainProvider: terrainProvider,
+  terrain: Cesium.Terrain.fromWorldTerrain({
+    requestWaterMask: true,
+    requestVertexNormals: true
+  }), // global terrain [web:209][web:456]
+  geocoder: true,           // search box [web:447][web:450][web:454]
+  sceneModePicker: true,    // 2D / 3D / Columbus [web:447][web:450]
+  baseLayerPicker: false,   // we'll manage imagery ourselves
   timeline: false,
-  animation: false,
-  baseLayerPicker: true,
-  sceneModePicker: true
+  animation: false
 });
 
-// Allow camera to get very close to terrain and respect collisions
-viewer.scene.screenSpaceCameraController.minimumZoomDistance = 5; // meters
+// Lighting and depth testing for nicer terrain rendering [web:456][web:455]
+viewer.scene.globe.enableLighting = true;
+viewer.scene.globe.depthTestAgainstTerrain = true;
+
+// Allow camera to get close to terrain
+viewer.scene.screenSpaceCameraController.minimumZoomDistance = 5;
 viewer.scene.screenSpaceCameraController.enableCollisionDetection = true;
 
 // -------------------------
-// Imagery: Thomson's Falls Sentinel GeoTIFF from ion
+// Imagery management
 // -------------------------
 
-// Remove default base layer (Bing or other)
-const baseLayer = viewer.imageryLayers.get(0);
-if (baseLayer) {
-  viewer.imageryLayers.remove(baseLayer);
+const imageryLayers = viewer.imageryLayers;
+let currentImageryLayer = null;
+
+function setImageryFromAsset(assetId) {
+  if (currentImageryLayer) {
+    imageryLayers.remove(currentImageryLayer);
+    currentImageryLayer = null;
+  }
+  const provider = new Cesium.IonImageryProvider({ assetId });
+  currentImageryLayer = imageryLayers.addImageryProvider(provider);
 }
 
-// Add your own site-specific Sentinel imagery from ion
-viewer.imageryLayers.addImageryProvider(
-  new Cesium.IonImageryProvider({ assetId: 5018470 })
-);
+// Default: global Sentinel-2 cloudless [web:185]
+setImageryFromAsset(SENTINEL_GLOBAL_ASSET_ID);
 
 // -------------------------
-// Viewpoint system
+// Global buildings (OSM)
 // -------------------------
 
-const viewpoints = {
+let osmBuildings = null;
+
+function ensureOsmBuildingsLoaded() {
+  if (!osmBuildings) {
+    osmBuildings = viewer.scene.primitives.add(
+      new Cesium.Cesium3DTileset({
+        url: Cesium.IonResource.fromAssetId(OSM_BUILDINGS_ASSET_ID)
+      })
+    );
+    osmBuildings.show = true;
+  }
+}
+
+function toggleBuildings() {
+  ensureOsmBuildingsLoaded();
+  osmBuildings.show = !osmBuildings.show;
+}
+
+// -------------------------
+// Thomson's Falls mode
+// -------------------------
+
+const thomsonViewpoints = {
   aerial: {
     destination: Cesium.Cartesian3.fromDegrees(36.38, -0.03, 2800),
     heading: Cesium.Math.toRadians(220),
@@ -63,22 +103,10 @@ const viewpoints = {
     heading: Cesium.Math.toRadians(20),
     pitch: Cesium.Math.toRadians(-10),
     roll: 0.0
-  },
-  upstream: {
-    destination: Cesium.Cartesian3.fromDegrees(36.375, -0.025, 2400),
-    heading: Cesium.Math.toRadians(200),
-    pitch: Cesium.Math.toRadians(-15),
-    roll: 0.0
-  },
-  downstream: {
-    destination: Cesium.Cartesian3.fromDegrees(36.385, -0.035, 2350),
-    heading: Cesium.Math.toRadians(20),
-    pitch: Cesium.Math.toRadians(-15),
-    roll: 0.0
   }
 };
 
-function flyTo(view) {
+function flyToView(view) {
   viewer.camera.flyTo({
     destination: view.destination,
     orientation: {
@@ -90,85 +118,70 @@ function flyTo(view) {
   });
 }
 
-// Initial view: aerial overview
-flyTo(viewpoints.aerial);
-
-// Keyboard shortcuts for viewpoints
-document.addEventListener("keydown", (event) => {
-  const key = event.key.toLowerCase();
-  if (key === "a") flyTo(viewpoints.aerial);
-  if (key === "r") flyTo(viewpoints.rim);
-  if (key === "g") flyTo(viewpoints.gorgeBase);
-  if (key === "u") flyTo(viewpoints.upstream);
-  if (key === "d") flyTo(viewpoints.downstream);
-});
-
-// -------------------------
-// Simple cliff-height measurement tool
-// -------------------------
-
-const measureButton = document.getElementById("measureCliffButton");
-const measureResult = document.getElementById("measureResult");
-
-let measuring = false;
-let firstPointCartographic = null;
-
-// Use a ScreenSpaceEventHandler to capture clicks
-const handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
-
-async function sampleTerrainHeight(cartographic) {
-  const [updated] = await Cesium.sampleTerrainMostDetailed(
-    viewer.terrainProvider,
-    [cartographic]
+// Switch terrain and imagery to Thomson's site-specific assets
+function activateThomsonMode() {
+  // Terrain: Thomson's DEM [web:204][web:456]
+  viewer.scene.setTerrain(
+    new Cesium.Terrain(
+      Cesium.CesiumTerrainProvider.fromIonAssetId(THOMSON_TERRAIN_ASSET_ID, {
+        requestWaterMask: true,
+        requestVertexNormals: true
+      })
+    )
   );
-  return updated.height;
+
+  // Imagery: Thomson's site Sentinel [web:212][web:216][web:219]
+  setImageryFromAsset(THOMSON_IMAGERY_ASSET_ID);
+
+  // Fly to aerial viewpoint over the falls
+  flyToView(thomsonViewpoints.aerial);
 }
 
-// Start measurement when button is clicked
-measureButton.addEventListener("click", () => {
-  measuring = true;
-  firstPointCartographic = null;
-  measureResult.textContent =
-    "Click cliff top, then cliff base on the terrain.";
+// Keyboard shortcuts for Thomson's viewpoints
+document.addEventListener("keydown", (event) => {
+  const key = event.key.toLowerCase();
+  if (key === "t") activateThomsonMode();        // T: Thomson mode
+  if (key === "r") flyToView(thomsonViewpoints.rim);
+  if (key === "g") flyToView(thomsonViewpoints.gorgeBase);
+  if (key === "a") flyToView(thomsonViewpoints.aerial);
 });
 
-// Handle left clicks on the globe
-handler.setInputAction(async (movement) => {
-  if (!measuring) {
-    return;
+// -------------------------
+// UI wiring
+// -------------------------
+
+const imagerySelect = document.getElementById("imagerySelect");
+const toggleBuildingsButton = document.getElementById("toggleBuildingsButton");
+const goThomsonButton = document.getElementById("goThomsonButton");
+
+imagerySelect.addEventListener("change", () => {
+  const val = imagerySelect.value;
+  if (val === "sentinel_global") {
+    // Global Sentinel-2 cloudless [web:185]
+    viewer.scene.setTerrain(Cesium.Terrain.fromWorldTerrain({
+      requestWaterMask: true,
+      requestVertexNormals: true
+    }));
+    setImageryFromAsset(SENTINEL_GLOBAL_ASSET_ID);
+  } else if (val === "thomson_site") {
+    activateThomsonMode();
   }
-  const cartesian = viewer.scene.pickPosition(movement.position);
-  if (!cartesian) {
-    measureResult.textContent = "Click on terrain (not sky).";
-    return;
-  }
+});
 
-  const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+toggleBuildingsButton.addEventListener("click", () => {
+  toggleBuildings();
+});
 
-  if (!firstPointCartographic) {
-    // First click: cliff top
-    firstPointCartographic = cartographic;
-    const topHeight = await sampleTerrainHeight(firstPointCartographic);
-    measureResult.textContent =
-      "Cliff top sampled at ~" + topHeight.toFixed(1) + " m. Now click base.";
-  } else {
-    // Second click: cliff base
-    const baseHeight = await sampleTerrainHeight(cartographic);
-    const topHeight = await sampleTerrainHeight(firstPointCartographic);
-    const diff = topHeight - baseHeight;
+goThomsonButton.addEventListener("click", () => {
+  activateThomsonMode();
+});
 
-    measureResult.textContent =
-      "Cliff height ≈ " + diff.toFixed(1) + " m (top " +
-      topHeight.toFixed(1) +
-      " m, base " +
-      baseHeight.toFixed(1) +
-      " m).";
+// -------------------------
+// Initial global view
+// -------------------------
 
-    // Finish measurement
-    measuring = false;
-    firstPointCartographic = null;
-  }
-}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+// Start with a global view; user can search or zoom anywhere.
+viewer.camera.flyHome(0); // global extent [web:199][web:450]
 
-// Expose viewer for debugging in browser console
+// Expose viewer for debugging
 window.viewer = viewer;
