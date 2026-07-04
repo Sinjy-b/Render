@@ -2,7 +2,8 @@
 // Cesium ion initialization
 // -------------------------
 
-Cesium.Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmM2ViY2FjNi1iYjM5LTQ5ZmQtODM3Mi03NWExNmY1ZTdjMGEiLCJpZCI6NDUyMjY4LCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoidW5kZWZpbmVkX2RlZmF1bHQiLCJpYXQiOjE3ODMxMDkyNTV9.BakumX90X00ws8_lPAKPLA2Bb7CExV1BTpBgFJjhqqM";
+Cesium.Ion.defaultAccessToken =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmM2ViY2FjNi1iYjM5LTQ5ZmQtODM3Mi03NWExNmY1ZTdjMGEiLCJpZCI6NDUyMjY4LCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoidW5kZWZpbmVkX2RlZmF1bHQiLCJpYXQiOjE3ODMxMDkyNTV9.BakumX90X00ws8_lPAKPLA2Bb7CExV1BTpBgFJjhqqM";
 
 // Terrain: Thomson's Falls DEM from Cesium ion
 const terrainProvider = new Cesium.CesiumTerrainProvider({
@@ -21,12 +22,13 @@ const viewer = new Cesium.Viewer("cesiumContainer", {
   sceneModePicker: true
 });
 
+// Allow camera to get very close to terrain and respect collisions
+viewer.scene.screenSpaceCameraController.minimumZoomDistance = 5; // meters
+viewer.scene.screenSpaceCameraController.enableCollisionDetection = true;
+
 // -------------------------
 // Imagery: Thomson's Falls Sentinel GeoTIFF from ion
 // -------------------------
-//
-// Upload your GeoTIFF (e.g., sentinel_thomsonsfalls.tif) to Cesium ion
-// as Raster Imagery, then use its asset ID here. [web:212][web:216][web:218][web:219][web:215]
 
 // Remove default base layer (Bing or other)
 const baseLayer = viewer.imageryLayers.get(0);
@@ -42,9 +44,6 @@ viewer.imageryLayers.addImageryProvider(
 // -------------------------
 // Viewpoint system
 // -------------------------
-
-// Approximate viewpoints around Thomson's Falls.
-// Refine lon/lat/height and orientation later as needed. [web:184][web:201]
 
 const viewpoints = {
   aerial: {
@@ -79,7 +78,6 @@ const viewpoints = {
   }
 };
 
-// Helper to fly to a given viewpoint
 function flyTo(view) {
   viewer.camera.flyTo({
     destination: view.destination,
@@ -95,12 +93,7 @@ function flyTo(view) {
 // Initial view: aerial overview
 flyTo(viewpoints.aerial);
 
-// Keyboard shortcuts for viewpoints:
-// A = aerial overview
-// R = rim
-// G = gorge base
-// U = upstream
-// D = downstream
+// Keyboard shortcuts for viewpoints
 document.addEventListener("keydown", (event) => {
   const key = event.key.toLowerCase();
   if (key === "a") flyTo(viewpoints.aerial);
@@ -109,6 +102,73 @@ document.addEventListener("keydown", (event) => {
   if (key === "u") flyTo(viewpoints.upstream);
   if (key === "d") flyTo(viewpoints.downstream);
 });
+
+// -------------------------
+// Simple cliff-height measurement tool
+// -------------------------
+
+const measureButton = document.getElementById("measureCliffButton");
+const measureResult = document.getElementById("measureResult");
+
+let measuring = false;
+let firstPointCartographic = null;
+
+// Use a ScreenSpaceEventHandler to capture clicks
+const handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
+
+async function sampleTerrainHeight(cartographic) {
+  const [updated] = await Cesium.sampleTerrainMostDetailed(
+    viewer.terrainProvider,
+    [cartographic]
+  );
+  return updated.height;
+}
+
+// Start measurement when button is clicked
+measureButton.addEventListener("click", () => {
+  measuring = true;
+  firstPointCartographic = null;
+  measureResult.textContent =
+    "Click cliff top, then cliff base on the terrain.";
+});
+
+// Handle left clicks on the globe
+handler.setInputAction(async (movement) => {
+  if (!measuring) {
+    return;
+  }
+  const cartesian = viewer.scene.pickPosition(movement.position);
+  if (!cartesian) {
+    measureResult.textContent = "Click on terrain (not sky).";
+    return;
+  }
+
+  const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+
+  if (!firstPointCartographic) {
+    // First click: cliff top
+    firstPointCartographic = cartographic;
+    const topHeight = await sampleTerrainHeight(firstPointCartographic);
+    measureResult.textContent =
+      "Cliff top sampled at ~" + topHeight.toFixed(1) + " m. Now click base.";
+  } else {
+    // Second click: cliff base
+    const baseHeight = await sampleTerrainHeight(cartographic);
+    const topHeight = await sampleTerrainHeight(firstPointCartographic);
+    const diff = topHeight - baseHeight;
+
+    measureResult.textContent =
+      "Cliff height ≈ " + diff.toFixed(1) + " m (top " +
+      topHeight.toFixed(1) +
+      " m, base " +
+      baseHeight.toFixed(1) +
+      " m).";
+
+    // Finish measurement
+    measuring = false;
+    firstPointCartographic = null;
+  }
+}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
 // Expose viewer for debugging in browser console
 window.viewer = viewer;
