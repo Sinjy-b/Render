@@ -1,26 +1,114 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Thomson's Falls 3D Environment</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- CesiumJS from CDN -->
-  <script src="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Cesium.js"></script>
-  <link href="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
-
-  <style>
-    html, body, #cesiumContainer {
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-    }
-  </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07130f">
+  <title>Thomson’s Falls — 3D Field Explorer</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div id="cesiumContainer"></div>
-  <script src="webapp/scripts/app.js"></script>
+  <main id="app" aria-label="Interactive 3D explorer of Thomson's Falls">
+    <canvas id="scene" aria-label="Three-dimensional terrain scene"></canvas>
+
+    <div id="loading" class="loading" role="status" aria-live="polite">
+      <div class="loader-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+      <p id="loading-label">Reading the terrain…</p>
+      <div class="loading-track"><i id="loading-progress"></i></div>
+    </div>
+
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">TF</div>
+        <div>
+          <h1>Thomson’s Falls</h1>
+          <p>Nyahururu · 0.0441° N, 36.3705° E</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button id="reset-view" class="icon-button" title="Reset view" aria-label="Reset view">↺</button>
+        <button id="open-info" class="icon-button" title="Model notes" aria-label="Open model notes">i</button>
+      </div>
+    </header>
+
+    <aside class="control-panel glass" aria-label="Explorer controls">
+      <section>
+        <div class="section-label"><span>Movement</span><kbd>W A S D</kbd></div>
+        <div class="segmented" role="group" aria-label="Navigation mode">
+          <button class="mode-button" data-mode="walk">Walk</button>
+          <button class="mode-button active" data-mode="fly">Fly</button>
+        </div>
+        <p id="movement-tip" class="hint">Drag to look · WASD to move · R/F for altitude · Shift to boost</p>
+      </section>
+
+      <section>
+        <div class="section-label"><span>Atmosphere</span><output id="weather-readout">Clear</output></div>
+        <div class="weather-grid" role="group" aria-label="Weather presets">
+          <button class="weather-button active" data-weather="clear"><span>☀</span>Sun</button>
+          <button class="weather-button" data-weather="mist"><span>≋</span>Mist</button>
+          <button class="weather-button" data-weather="rain"><span>╱</span>Rain</button>
+          <button class="weather-button" data-weather="fog"><span>☁</span>Fog</button>
+        </div>
+        <label class="range-row" for="weather-level">
+          <span>Intensity</span><input id="weather-level" type="range" min="0" max="100" value="55">
+        </label>
+        <label class="range-row" for="sun-angle">
+          <span>Sun angle</span><input id="sun-angle" type="range" min="6" max="18" value="11">
+        </label>
+      </section>
+
+      <section class="sound-row">
+        <div>
+          <div class="section-label"><span>Soundscape</span></div>
+          <p class="hint">Procedural water, rain and forest ambience</p>
+        </div>
+        <button id="sound-toggle" class="toggle" role="switch" aria-checked="false"><i></i></button>
+      </section>
+    </aside>
+
+    <div class="scene-note glass" id="scene-note">
+      <span class="pulse"></span>
+      <div><strong>Waterfall lip</strong><small>74 m constrained drop</small></div>
+    </div>
+
+    <div class="scale-wrap" aria-label="Scale bar"><span>50 m</span><i></i></div>
+
+    <footer class="hud glass">
+      <div><span>Mode</span><strong id="hud-mode">FLY</strong></div>
+      <div><span>Altitude</span><strong id="hud-altitude">—</strong></div>
+      <div><span>Range</span><strong>640 × 640 m</strong></div>
+      <div class="hud-source"><span>Terrain</span><strong>SRTM-derived · 1:1 scale</strong></div>
+    </footer>
+
+    <div class="center-reticle" aria-hidden="true"><i></i></div>
+
+    <dialog id="info-dialog">
+      <form method="dialog">
+        <button class="dialog-close" aria-label="Close">×</button>
+        <p class="eyebrow">MODEL NOTES</p>
+        <h2>A field explorer, not a survey instrument</h2>
+        <p>The 640 m scene is georeferenced to Thomson’s Falls and rendered at one world unit per metre. Regional relief uses a 30 m-class SRTM-derived grid. The narrow waterfall face is below that grid’s effective resolving power, so the documented 74 m drop is imposed as a local geomorphic constraint.</p>
+        <div class="notes-grid">
+          <article><b>Imagery</b><span>Esri World Imagery, used as the surface texture and an RGB green-cover proxy for vegetation placement.</span></article>
+          <article><b>Features</b><span>River, falls, gorge, near-falls footpath and lookout are reconstructed from imagery; small objects are approximate.</span></article>
+          <article><b>Weather</b><span>Sun, mist, fog and rain are interactive visual scenarios. They are not a live forecast.</span></article>
+          <article><b>Snow decision</b><span>Snow is intentionally omitted. The widely reported 2017 Nyahururu event was identified by Kenya’s meteorological authority as hail.</span></article>
+        </div>
+        <h3>Data and evidence</h3>
+        <ul class="sources">
+          <li><a href="https://www.earthdata.nasa.gov/data/catalog/lpcloud-srtmgl1-003" target="_blank" rel="noreferrer">NASA Earthdata — SRTMGL1 v003</a></li>
+          <li><a href="https://doc.arcgis.com/en/data-appliance/latest/imagery-elevation/world-imagery.htm" target="_blank" rel="noreferrer">Esri — World Imagery documentation</a></li>
+          <li><a href="https://factcheck.afp.com/images-claiming-show-recent-snowfall-kenya-are-old-and-actually-depict-hail" target="_blank" rel="noreferrer">AFP / Kenya Meteorological Department — hail clarification</a></li>
+        </ul>
+        <p class="attribution">Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community. Elevations are relative to the scene mean; the source mean is approximately 2,336 m above sea level.</p>
+      </form>
+    </dialog>
+
+    <div id="webgl-error" hidden>
+      <h2>WebGL is unavailable</h2>
+      <p>This explorer needs hardware-accelerated WebGL. Enable graphics acceleration or open it in a current desktop browser.</p>
+    </div>
+  </main>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
